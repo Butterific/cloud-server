@@ -27,9 +27,38 @@ To use a local cloud variable server in forkphorus, you can use the `chost` URL 
 
 You can do a similar thing in TurboWarp with the `cloud_host` URL parameter: https://turbowarp.org/?cloud_host=ws://localhost:9080/
 
+## Deno Deploy setup
+
+This repo now includes a Deno Deploy entrypoint in `deno.ts`.
+
+Use `deno.ts` as the project entrypoint in Deno Deploy. The WebSocket protocol is kept compatible with existing clients (forkphorus/TurboWarp/Scratch-style cloud clients), so old projects can keep using the same cloud message format and close codes.
+
+Default behavior on Deno Deploy is tuned for lower CPU and bandwidth usage:
+
+- send buffering is enabled (`BUFFER_SENDS=20`)
+- no per-message compression overhead
+- idle and no-handshake connections are cleaned up
+- dormant rooms are periodically removed
+
+### Deno Deploy environment variables
+
+- `TRUST_PROXY` (`true`/`false`)
+- `ANONYMIZE_ADDRESSES` (`true`/`false`)
+- `ANONYMIZE_GENERATED_USERNAMES` (`true`/`false`, default `true`)
+- `ENABLE_RENAME` (`true`/`false`, default `false`)
+- `ENABLE_DELETE` (`true`/`false`, default `false`)
+- `BUFFER_SENDS` (messages/second, default `20`, set `0` to disable buffering)
+- `MAX_ROOMS` (default `16384`)
+- `JANITOR_INTERVAL_MS` (default `60000`)
+- `JANITOR_THRESHOLD_MS` (default `3600000`)
+- `HANDSHAKE_TIMEOUT_MS` (default `30000`)
+- `CLIENT_IDLE_TIMEOUT_MS` (default `900000`)
+- `MAX_MESSAGE_CHARS` (default `1000000`)
+- `LOG_LEVEL` (`info` or `debug`, default `info`)
+
 ## Configuration
 
-HTTP requests are served static files in the `public` directory.
+For Deno Deploy, HTTP responses are served directly by `deno.ts` (no external static directory required).
 
 ### src/config.js
 

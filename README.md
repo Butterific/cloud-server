@@ -1,46 +1,48 @@
-# cloud-server
+# cloud-server (Deno Deploy)
 
-A cloud data server for Scratch 3. Used by [forkphorus](https://forkphorus.github.io/) and [TurboWarp](https://turbowarp.org/).
+A cloud data server for Scratch-style cloud variables, compatible with existing forkphorus/TurboWarp projects.
 
-It uses a protocol very similar to Scratch 3's cloud variable protocol. See doc/protocol.md for further details.
+This version is adapted to run on Deno Deploy using `deno.ts` as the runtime entrypoint.
+
+## Compatibility
+
+The WebSocket protocol is kept compatible with the original cloud-server behavior:
+
+- same handshake + `set/create/delete/rename` message methods
+- same newline-batched `set` forwarding behavior
+- same important close codes (`4000`, `4002`, `4003`, `4005`)
+
+So previous projects should work the same, with the main difference being deployment on Deno Deploy.
+
+See `doc/protocol.md` for protocol details.
 
 ## Restrictions
 
-This server does not implement long term variable storage. All data is stored only in memory (never on disk) and are removed promptly when rooms are emptied or the server restarts.
+- No long-term storage: all data is in memory only.
+- No history logs.
+- Rooms/variables reset when the deployment restarts.
 
-This server also does not implement history logs.
+## Deploy on Deno Deploy
 
-## Setup
+Set your project entrypoint to:
 
-Needs Node.js and npm.
+`deno.ts`
 
-```
-git clone https://github.com/TurboWarp/cloud-server
-cd cloud-server
-npm install
-npm start
-```
+You do not need to set any environment variables to start; defaults are already configured.
 
-By default the server is listening on ws://localhost:9080/. To change the port or enable wss://, read below.
+## Resource optimization defaults
 
-To use a local cloud variable server in forkphorus, you can use the `chost` URL parameter, for example: https://forkphorus.github.io/?chost=ws://localhost:9080/
+The Deno runtime is tuned to reduce active CPU time and bandwidth usage:
 
-You can do a similar thing in TurboWarp with the `cloud_host` URL parameter: https://turbowarp.org/?cloud_host=ws://localhost:9080/
+- send buffering enabled by default (`BUFFER_SENDS=20`)
+- lazy flush scheduling (flush timer only when buffered data exists)
+- lazy maintenance scheduling (runs only when clients/rooms exist)
+- handshake timeout cleanup
+- idle client cleanup
+- dormant room janitor cleanup
+- message size cap
 
-## Deno Deploy setup
-
-This repo now includes a Deno Deploy entrypoint in `deno.ts`.
-
-Use `deno.ts` as the project entrypoint in Deno Deploy. The WebSocket protocol is kept compatible with existing clients (forkphorus/TurboWarp/Scratch-style cloud clients), so old projects can keep using the same cloud message format and close codes.
-
-Default behavior on Deno Deploy is tuned for lower CPU and bandwidth usage:
-
-- send buffering is enabled (`BUFFER_SENDS=20`)
-- no per-message compression overhead
-- idle and no-handshake connections are cleaned up
-- dormant rooms are periodically removed
-
-### Deno Deploy environment variables
+## Environment variables
 
 - `TRUST_PROXY` (`true`/`false`)
 - `ANONYMIZE_ADDRESSES` (`true`/`false`)
@@ -56,50 +58,7 @@ Default behavior on Deno Deploy is tuned for lower CPU and bandwidth usage:
 - `MAX_MESSAGE_CHARS` (default `1000000`)
 - `LOG_LEVEL` (`info` or `debug`, default `info`)
 
-## Configuration
+## Notes
 
-For Deno Deploy, HTTP responses are served directly by `deno.ts` (no external static directory required).
-
-### src/config.js
-
-src/config.js is the configuration file for cloud-server.
-
-The `port` property (or the `PORT` environment variable) configures the port to listen on.
-
-On unix-like systems, port can also be a path to a unix socket. By default cloud-server will set the permission of unix sockets to `777`. This can be configured with `unixSocketPermissions`.
-
-If you use a reverse proxy, set the `trustProxy` property (or `TRUST_PROXY` environment variable) to `true` so that logs contain the user's IP address instead of your proxy's.
-
-Set `anonymizeAddresses` to `true` if you want IP addresses to be not be logged.
-
-Set `perMessageDeflate` to an object to enable "permessage-deflate", which uses compression to reduce the bandwidth of data transfers. This can lead to poor performance and catastrophic memory fragmentation on Linux (https://github.com/nodejs/node/issues/8871). See here for options: https://github.com/websockets/ws/blob/master/doc/ws.md#new-websocketserveroptions-callback (look for `perMessageDeflate`)
-
-You can configure logging with the `logging` property of src/config.js. By default cloud-server logs to stdout and to files in the `logs` folder. stdout logging can be disabled by setting `logging.console` to false. File logging is configured with `logging.rotation`, see here for options: https://github.com/winstonjs/winston-daily-rotate-file#options. Set to false to disable.
-
-### Production setup
-
-cloud-server is considered production ready as it has been in use in a production environment for months without issue. That said, there is no warranty. If a bug in cloud-server results in you losing millions of dollars, tough luck. (see LICENSE for more details)
-
-You should probably be using a reverse proxy such as nginx or caddy in a production environment.
-
-In this setup cloud-server should listen on a high port such as 9080 (or even a unix socket), and your proxy will handle HTTP(S) connections and forward requests to the cloud server. You should make sure that the port that cloud-server is listening on is not open.
-
-Here's a sample nginx config that uses SSL to secure the connection:
-
-```cfg
-server {
-        listen 443 ssl http2;
-        ssl_certificate /path/to/your/ssl/cert;
-        ssl_certificate_key /path/to/your/ssl/key;
-        server_name clouddata.yourdomain.com;
-        location / {
-                proxy_pass http://127.0.0.1:9080;
-                proxy_http_version 1.1;
-                proxy_set_header Upgrade $http_upgrade;
-                proxy_set_header Connection "upgrade";
-                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        }
-}
-```
-
-You may also want to make a systemd service file for the server, but this is left as an exercise to the reader.
+- HTTP responses are served directly by `deno.ts`.
+- The runtime does not depend on Node.js, npm, or `src/config.js`.
